@@ -17,6 +17,7 @@
 
 package com.geeksville.mesh.ui.intro
 
+import android.text.Html
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -45,16 +46,46 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.geeksville.mesh.R
 import com.geeksville.mesh.ui.common.components.AutoLinkText
 import kotlinx.coroutines.launch
 
-// Data class for a slide
+// converting HTML strings to properly styled text
+@Composable
+private fun htmlToAnnotatedString(html: String): AnnotatedString {
+    val spanned = Html.fromHtml(html, Html.FROM_HTML_MODE_COMPACT)
+    return buildAnnotatedString {
+        val text = spanned.toString()
+        append(text)
+        
+        // making RGU text red whenever it shows up
+        var searchIndex = 0
+        while (searchIndex < text.length) {
+            val rguIndex = text.indexOf("RGU", searchIndex)
+            if (rguIndex >= 0) {
+                addStyle(
+                    style = SpanStyle(color = Color.Red),
+                    start = rguIndex,
+                    end = rguIndex + 3
+                )
+                searchIndex = rguIndex + 3
+            } else {
+                break
+            }
+        }
+    }
+}
+
+// just holds the data for each intro screen slide
 private data class IntroSlide(
     val title: String,
     val description: String,
@@ -173,13 +204,13 @@ private fun IntroScreenContent(slide: IntroSlide) {
             )
             Spacer(modifier = Modifier.height(32.dp))
             Text(
-                text = slide.title,
+                text = htmlToAnnotatedString(slide.title),
                 style = MaterialTheme.typography.headlineMedium,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(16.dp))
-            AutoLinkText(
-                text = slide.description,
+            Text(
+                text = htmlToAnnotatedString(slide.description),
                 style = MaterialTheme.typography.bodyLarge,
             )
         }

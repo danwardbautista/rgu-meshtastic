@@ -422,9 +422,9 @@ class MainActivity : AppCompatActivity(), Logging {
                 chooseThemeDialog()
             }
 
-            MainMenuAction.LANGUAGE -> {
-                chooseLangDialog()
-            }
+            // MainMenuAction.LANGUAGE -> {
+            //     chooseLangDialog()
+            // }
 
             MainMenuAction.SHOW_INTRO -> {
                 showAppIntro = true // Show intro again if selected from menu
