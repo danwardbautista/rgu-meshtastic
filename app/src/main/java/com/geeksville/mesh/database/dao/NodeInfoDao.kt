@@ -24,17 +24,78 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
-import com.geeksville.mesh.android.BuildUtils.warn
-import com.geeksville.mesh.copy
 import com.geeksville.mesh.database.entity.MetadataEntity
 import com.geeksville.mesh.database.entity.MyNodeEntity
 import com.geeksville.mesh.database.entity.NodeEntity
 import com.geeksville.mesh.database.entity.NodeWithRelations
+import com.google.protobuf.ByteString
 import kotlinx.coroutines.flow.Flow
 
 @Suppress("TooManyFunctions")
 @Dao
 interface NodeInfoDao {
+
+    /**
+     * Verifies a [NodeEntity] before an upsert operation. It handles populating the publicKey for lazy migration,
+     * checks for public key conflicts with new nodes, and manages updates to existing nodes, particularly in cases of
+     * public key mismatches to prevent potential impersonation or data corruption.
+     *
+     * @param incomingNode The node entity to be verified.
+     * @return A [NodeEntity] that is safe to upsert, or null if the upsert should be aborted (e.g., due to an
+     *   impersonation attempt, though this logic is currently commented out).
+     */
+    private fun getVerifiedNodeForUpsert(incomingNode: NodeEntity): NodeEntity {
+        // Populate the NodeEntity.publicKey field from the User.publicKey for consistency
+        // and to support lazy migration.
+        incomingNode.publicKey = incomingNode.user.publicKey
+
+        val existingNodeEntity = getNodeByNum(incomingNode.num)?.node
+
+        return if (existingNodeEntity == null) {
+            handleNewNodeUpsertValidation(incomingNode)
+        } else {
+            handleExistingNodeUpsertValidation(existingNodeEntity, incomingNode)
+        }
+    }
+
+    /** Validates a new node before it is inserted into the database. */
+    private fun handleNewNodeUpsertValidation(newNode: NodeEntity): NodeEntity {
+        // Check if the new node's public key (if present and not empty)
+        // is already claimed by another existing node.
+        if (newNode.publicKey?.isEmpty == false) {
+            val nodeWithSamePK = findNodeByPublicKey(newNode.publicKey)
+            if (nodeWithSamePK != null && nodeWithSamePK.num != newNode.num) {
+                // This is a potential impersonation attempt.
+                return nodeWithSamePK
+            }
+        }
+        // If no conflicting public key is found, or if the impersonation check is not active,
+        // the new node is considered safe to add.
+        return newNode
+    }
+
+    private fun handleExistingNodeUpsertValidation(existingNode: NodeEntity, incomingNode: NodeEntity): NodeEntity {
+        // A public key is considered matching if the incoming key equals the existing key,
+        // OR if the existing key is empty (allowing a new key to be set or an update to proceed).
+        val isPublicKeyMatchingOrExistingIsEmpty =
+            existingNode.user.publicKey == incomingNode.publicKey || existingNode.user.publicKey.isEmpty
+
+        return if (isPublicKeyMatchingOrExistingIsEmpty) {
+            // Keys match or existing key was empty: trust the incoming node data completely.
+            // This allows for legitimate updates to user info and other fields.
+            incomingNode
+        } else {
+            existingNode.copy(
+                lastHeard = incomingNode.lastHeard,
+                snr = incomingNode.snr,
+                position = incomingNode.position,
+                // Preserve the existing user object, but update its internal public key to EMPTY
+                // to reflect the conflict state.
+                user = existingNode.user.toBuilder().setPublicKey(ByteString.EMPTY).build(),
+                publicKey = ByteString.EMPTY,
+            )
+        }
+    }
 
     @Query("SELECT * FROM my_node")
     fun getMyNodeInfo(): Flow<MyNodeEntity?>
@@ -53,10 +114,16 @@ interface NodeInfoDao {
             ELSE 1
         END,
         last_heard DESC
-        """
+        """,
     )
     @Transaction
-    fun nodeDBbyNum(): Flow<Map<@MapColumn(columnName = "num") Int, NodeWithRelations>>
+    fun nodeDBbyNum(): Flow<
+        Map<
+            @MapColumn(columnName = "num")
+            Int,
+            NodeWithRelations,
+            >,
+        >
 
     @Query(
         """
@@ -80,7 +147,7 @@ interface NodeInfoDao {
     END,
     CASE
         WHEN :sort = 'last_heard' THEN last_heard * -1
-        WHEN :sort = 'alpha' THEN UPPER(long_name) 
+        WHEN :sort = 'alpha' THEN UPPER(long_name)
         WHEN :sort = 'distance' THEN
             CASE
                 WHEN latitude IS NULL OR longitude IS NULL OR
@@ -102,7 +169,7 @@ interface NodeInfoDao {
         ELSE 0
     END ASC,
     last_heard DESC
-    """
+    """,
     )
     @Transaction
     fun getNodes(
@@ -113,50 +180,22 @@ interface NodeInfoDao {
         lastHeardMin: Int,
     ): Flow<List<NodeWithRelations>>
 
-    @Upsert
-    fun upsert(node: NodeEntity) {
-        val found = getNodeByNum(node.num)?.node
-        found?.let {
-            val keyMatch = !it.hasPKC || it.user.publicKey == node.user.publicKey
-            it.user = if (keyMatch) {
-                node.user
-            } else {
-                node.user.copy {
-                    warn("Public key mismatch from $longName ($shortName)")
-                    publicKey = NodeEntity.ERROR_BYTE_STRING
-                }
-            }
-        }
-        doUpsert(node)
-    }
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun putAll(nodes: List<NodeEntity>) {
-        nodes.forEach { node ->
-            val found = getNodeByNum(node.num)?.node
-            found?.let {
-                val keyMatch = !it.hasPKC || it.user.publicKey == node.user.publicKey
-                it.user = if (keyMatch) {
-                    node.user
-                } else {
-                    node.user.copy {
-                        warn("Public key mismatch from $longName ($shortName)")
-                        publicKey = NodeEntity.ERROR_BYTE_STRING
-                    }
-                }
-            }
-        }
-        doPutAll(nodes)
-    }
-
     @Query("DELETE FROM nodes")
     fun clearNodeInfo()
 
     @Query("DELETE FROM nodes WHERE num=:num")
     fun deleteNode(num: Int)
 
-    @Upsert
-    fun upsert(meta: MetadataEntity)
+    @Query("DELETE FROM nodes WHERE num IN (:nodeNums)")
+    fun deleteNodes(nodeNums: List<Int>)
+
+    @Query("SELECT * FROM nodes WHERE last_heard < :lastHeard")
+    fun getNodesOlderThan(lastHeard: Int): List<NodeEntity>
+
+    @Query("SELECT * FROM nodes WHERE short_name IS NULL")
+    fun getUnknownNodes(): List<NodeEntity>
+
+    @Upsert fun upsert(meta: MetadataEntity)
 
     @Query("DELETE FROM metadata WHERE num=:num")
     fun deleteMetadata(num: Int)
@@ -165,9 +204,16 @@ interface NodeInfoDao {
     @Transaction
     fun getNodeByNum(num: Int): NodeWithRelations?
 
-    @Upsert
-    fun doUpsert(node: NodeEntity)
+    @Query("SELECT * FROM nodes WHERE public_key = :publicKey LIMIT 1")
+    fun findNodeByPublicKey(publicKey: ByteString?): NodeEntity?
+
+    @Upsert fun doUpsert(node: NodeEntity)
+
+    fun upsert(node: NodeEntity) {
+        val verifiedNode = getVerifiedNodeForUpsert(node)
+        doUpsert(verifiedNode)
+    }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun doPutAll(nodes: List<NodeEntity>)
+    fun putAll(nodes: List<NodeEntity>)
 }

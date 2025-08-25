@@ -15,35 +15,20 @@
      along with this program.  If not, see <https://www.gnu.org/licenses/>.
 -->
 
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Base application theme. -->
-    <style name="AppTheme" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar">
-        <item name="android:windowActivityTransitions">true</item>
-        <item name="android:windowEnterTransition">@android:transition/fade</item>
-        <item name="android:windowExitTransition">@android:transition/fade</item>
-        <item name="android:windowSharedElementEnterTransition">@android:transition/move</item>
-        <item name="android:windowSharedElementExitTransition">@android:transition/move</item>
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
+    <!-- Shim in the system UI overrides -->
+    <style name="SplashTheme.NightAdjusted" parent="Theme.SplashScreen">
         <item name="android:windowLightStatusBar">true</item>
-        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">true</item>
+        <item name="windowSplashScreenBackground">#FFFFFF</item>
     </style>
 
-    <style name="Theme.App.Starting" parent="Theme.SplashScreen">
-        // Set the splash screen background, animated icon, and animation duration.
-        <item name="windowSplashScreenBackground">@color/selectedColor</item>
-
-        // Use windowSplashScreenAnimatedIcon to add either a drawable or an
-        // animated drawable. One of these is required.
-        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher2_foreground</item>
-        <item name="windowSplashScreenAnimationDuration">1000</item>
-        # Required for
-        # animated icons
-
-        // Set the theme of the Activity that directly follows your splash screen.
+    <style name="SplashTheme" parent="SplashTheme.NightAdjusted">
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash</item>
         <item name="postSplashScreenTheme">@style/AppTheme</item>
-        # Required.
     </style>
+
+    <style name="AppTheme" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar" />
 
 </resources>

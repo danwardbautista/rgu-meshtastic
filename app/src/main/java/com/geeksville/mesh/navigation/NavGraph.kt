@@ -27,11 +27,13 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navDeepLink
 import com.geeksville.mesh.R
 import com.geeksville.mesh.model.BluetoothViewModel
 import com.geeksville.mesh.model.UIViewModel
 import com.geeksville.mesh.ui.TopLevelDestination.Companion.isTopLevel
 import com.geeksville.mesh.ui.debug.DebugScreen
+import com.geeksville.mesh.ui.map.MapViewModel
 import kotlinx.serialization.Serializable
 
 enum class AdminRoute(@StringRes val title: Int) {
@@ -43,32 +45,25 @@ enum class AdminRoute(@StringRes val title: Int) {
 
 const val DEEP_LINK_BASE_URI = "meshtastic://meshtastic"
 
-@Serializable
-sealed interface Graph : Route
+@Serializable sealed interface Graph : Route
+
 @Serializable
 sealed interface Route {
-    @Serializable
-    data object DebugPanel : Route
+    @Serializable data object DebugPanel : Route
 }
 
-fun NavDestination.isConfigRoute(): Boolean {
-    return ConfigRoute.entries.any { hasRoute(it.route::class) } ||
-            ModuleRoute.entries.any { hasRoute(it.route::class) }
-}
+fun NavDestination.isConfigRoute(): Boolean =
+    ConfigRoute.entries.any { hasRoute(it.route::class) } || ModuleRoute.entries.any { hasRoute(it.route::class) }
 
-fun NavDestination.isNodeDetailRoute(): Boolean {
-    return NodeDetailRoute.entries.any { hasRoute(it.route::class) }
-}
+fun NavDestination.isNodeDetailRoute(): Boolean = NodeDetailRoute.entries.any { hasRoute(it.route::class) }
 
-fun NavDestination.showLongNameTitle(): Boolean {
-
-    return !this.isTopLevel() && (
-            this.hasRoute<RadioConfigRoutes.RadioConfig>() ||
-                    this.hasRoute<NodesRoutes.NodeDetail>() ||
-                    this.isConfigRoute() ||
-                    this.isNodeDetailRoute()
-            )
-}
+fun NavDestination.showLongNameTitle(): Boolean = !this.isTopLevel() &&
+    (
+        this.hasRoute<RadioConfigRoutes.RadioConfig>() ||
+            this.hasRoute<NodesRoutes.NodeDetail>() ||
+            this.isConfigRoute() ||
+            this.isNodeDetailRoute()
+        )
 
 @Suppress("LongMethod")
 @Composable
@@ -76,23 +71,20 @@ fun NavGraph(
     modifier: Modifier = Modifier,
     uIViewModel: UIViewModel = hiltViewModel(),
     bluetoothViewModel: BluetoothViewModel = hiltViewModel(),
+    mapViewModel: MapViewModel = hiltViewModel(),
     navController: NavHostController = rememberNavController(),
 ) {
-    NavHost(
-        navController = navController,
-        startDestination = if (uIViewModel.isConnected()) {
-            NodesRoutes.NodesGraph
-        } else {
-            ConnectionsRoutes.ConnectionsGraph
-        },
-        modifier = modifier,
-    ) {
+    NavHost(navController = navController, startDestination = ConnectionsRoutes.ConnectionsGraph, modifier = modifier) {
         contactsGraph(navController, uIViewModel)
-        nodesGraph(navController, uIViewModel,)
-        mapGraph(navController, uIViewModel)
+        nodesGraph(navController, uIViewModel)
+        mapGraph(navController, uIViewModel, mapViewModel)
         channelsGraph(navController, uIViewModel)
         connectionsGraph(navController, uIViewModel, bluetoothViewModel)
-        composable<Route.DebugPanel> { DebugScreen() }
+        composable<Route.DebugPanel>(
+            deepLinks = listOf(navDeepLink<Route.DebugPanel>(basePath = "$DEEP_LINK_BASE_URI/debug_panel")),
+        ) {
+            DebugScreen()
+        }
         radioConfigGraph(navController, uIViewModel)
     }
 }

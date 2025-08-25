@@ -17,34 +17,28 @@
 
 package com.geeksville.mesh.analytics
 
-import android.content.Context
 import android.os.Bundle
-import com.geeksville.mesh.android.AppPrefs
 import com.geeksville.mesh.android.Logging
+import com.google.firebase.Firebase
 import com.google.firebase.analytics.FirebaseAnalytics
 import com.google.firebase.analytics.analytics
 import com.google.firebase.analytics.logEvent
-import com.google.firebase.Firebase
 
 class DataPair(val name: String, valueIn: Any?) {
     val value = valueIn ?: "null"
 
-    /// An accumulating firebase event - only one allowed per event
+    // / An accumulating firebase event - only one allowed per event
     constructor(d: Double) : this(FirebaseAnalytics.Param.VALUE, d)
+
     constructor(d: Int) : this(FirebaseAnalytics.Param.VALUE, d)
 }
 
-/**
- * Implement our analytics API using Firebase Analytics
- */
-class FirebaseAnalytics(context: Context) : AnalyticsProvider, Logging {
+/** Implement our analytics API using Firebase Analytics */
+class FirebaseAnalytics(installId: String) :
+    AnalyticsProvider,
+    Logging {
 
-    val t = Firebase.analytics
-
-    init {
-        val pref = AppPrefs(context)
-        t.setUserId(pref.getInstallId())
-    }
+    val t = Firebase.analytics.apply { setUserId(installId) }
 
     override fun setEnabled(on: Boolean) {
         t.setAnalyticsCollectionEnabled(on)
@@ -85,12 +79,10 @@ class FirebaseAnalytics(context: Context) : AnalyticsProvider, Logging {
     }
 
     override fun increment(name: String, amount: Double) {
-        //Mint.logEvent("$name increment")
+        // Mint.logEvent("$name increment")
     }
 
-    /**
-     * Send a google analytics screen view event
-     */
+    /** Send a google analytics screen view event */
     override fun sendScreenView(name: String) {
         debug("Analytics: start screen $name")
         t.logEvent(FirebaseAnalytics.Event.SCREEN_VIEW) {

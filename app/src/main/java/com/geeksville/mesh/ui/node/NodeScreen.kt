@@ -45,6 +45,7 @@ import com.geeksville.mesh.DataPacket
 import com.geeksville.mesh.model.DeviceVersion
 import com.geeksville.mesh.model.Node
 import com.geeksville.mesh.model.UIViewModel
+import com.geeksville.mesh.service.ConnectionState
 import com.geeksville.mesh.ui.common.components.rememberTimeTickWithLifecycle
 import com.geeksville.mesh.ui.node.components.NodeFilterTextField
 import com.geeksville.mesh.ui.node.components.NodeItem
@@ -65,6 +66,8 @@ fun NodeScreen(
 
     val nodes by model.nodeList.collectAsStateWithLifecycle()
     val ourNode by model.ourNodeInfo.collectAsStateWithLifecycle()
+    val unfilteredNodes by model.unfilteredNodeList.collectAsStateWithLifecycle()
+    val ignoredNodeCount = unfilteredNodes.count { it.isIgnored }
 
     val listState = rememberLazyListState()
 
@@ -73,32 +76,19 @@ fun NodeScreen(
 
     var showSharedContact: Node? by remember { mutableStateOf(null) }
     if (showSharedContact != null) {
-        SharedContactDialog(
-            contact = showSharedContact,
-            onDismiss = { showSharedContact = null }
-        )
+        SharedContactDialog(contact = showSharedContact, onDismiss = { showSharedContact = null })
     }
 
-    val isScrollInProgress by remember {
-        derivedStateOf { listState.isScrollInProgress }
-    }
+    val isScrollInProgress by remember { derivedStateOf { listState.isScrollInProgress } }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-    ) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-        ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
             stickyHeader {
-                val animatedAlpha by animateFloatAsState(
-                    targetValue = if (!isScrollInProgress) 1.0f else 0f,
-                    label = "alpha"
-                )
+                val animatedAlpha by
+                    animateFloatAsState(targetValue = if (!isScrollInProgress) 1.0f else 0f, label = "alpha")
                 NodeFilterTextField(
-                    modifier = Modifier
-                        .fillMaxWidth()
+                    modifier =
+                    Modifier.fillMaxWidth()
                         .graphicsLayer(alpha = animatedAlpha)
                         .background(MaterialTheme.colorScheme.surfaceDim)
                         .padding(8.dp),
@@ -114,6 +104,9 @@ fun NodeScreen(
                     onToggleOnlyDirect = model::toggleOnlyDirect,
                     showDetails = state.showDetails,
                     onToggleShowDetails = model::toggleShowDetails,
+                    showIgnored = state.showIgnored,
+                    onToggleShowIgnored = model::toggleShowIgnored,
+                    ignoredNodeCount = ignoredNodeCount,
                 )
             }
 
@@ -122,7 +115,6 @@ fun NodeScreen(
                     modifier = Modifier.animateItem(),
                     thisNode = ourNode,
                     thatNode = node,
-                    gpsFormat = state.gpsFormat,
                     distanceUnits = state.distanceUnits,
                     tempInFahrenheit = state.tempInFahrenheit,
                     onAction = { menuItem ->
@@ -132,8 +124,7 @@ fun NodeScreen(
                             is NodeMenuAction.Favorite -> model.favoriteNode(node)
                             is NodeMenuAction.DirectMessage -> {
                                 val hasPKC = model.ourNodeInfo.value?.hasPKC == true && node.hasPKC
-                                val channel =
-                                    if (hasPKC) DataPacket.PKC_CHANNEL_INDEX else node.channel
+                                val channel = if (hasPKC) DataPacket.PKC_CHANNEL_INDEX else node.channel
                                 navigateToMessages("$channel${node.user.id}")
                             }
 
@@ -156,19 +147,10 @@ fun NodeScreen(
 
         AnimatedVisibility(
             modifier = Modifier.align(Alignment.BottomEnd),
-            visible = !isScrollInProgress &&
-                    connectionState.isConnected() &&
-                    shareCapable
+            visible = !isScrollInProgress && connectionState == ConnectionState.CONNECTED && shareCapable,
         ) {
             @Suppress("NewApi")
-            (
-                AddContactFAB(
-                    model = model,
-                    onSharedContactImport = { contact ->
-                        model.addSharedContact(contact)
-                    }
-                )
-            )
+            (AddContactFAB(model = model, onSharedContactImport = { contact -> model.addSharedContact(contact) }))
         }
     }
 }

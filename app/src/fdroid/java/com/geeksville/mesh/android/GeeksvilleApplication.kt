@@ -19,55 +19,84 @@ package com.geeksville.mesh.android
 
 import android.app.Application
 import android.content.Context
-import android.content.SharedPreferences
 import android.provider.Settings
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.edit
+import androidx.compose.runtime.Composable
+import androidx.navigation.NavHostController
+import com.geeksville.mesh.BuildConfig
 import com.geeksville.mesh.analytics.AnalyticsProvider
+import com.geeksville.mesh.analytics.NopAnalytics
+import com.geeksville.mesh.android.BuildUtils.debug
+import com.geeksville.mesh.android.BuildUtils.info
+import com.geeksville.mesh.android.prefs.AnalyticsPrefs
+import com.geeksville.mesh.model.DeviceHardware
+import timber.log.Timber
 
-open class GeeksvilleApplication : Application(), Logging {
+abstract class GeeksvilleApplication :
+    Application(),
+    Logging {
 
     companion object {
         lateinit var analytics: AnalyticsProvider
     }
 
-    /// Are we running inside the testlab?
+    val isGooglePlayAvailable: Boolean
+        get() {
+            return false
+        }
+
+    // / Are we running inside the testlab?
     val isInTestLab: Boolean
         get() {
-            val testLabSetting =
-                Settings.System.getString(contentResolver, "firebase.test.lab") ?: null
-            if(testLabSetting != null)
+            val testLabSetting = Settings.System.getString(contentResolver, "firebase.test.lab") ?: null
+            if (testLabSetting != null) {
                 info("Testlab is $testLabSetting")
+            }
             return "true" == testLabSetting
         }
 
-    private val analyticsPrefs: SharedPreferences by lazy {
-        getSharedPreferences("analytics-prefs", Context.MODE_PRIVATE)
-    }
+    abstract val analyticsPrefs: AnalyticsPrefs
 
     var isAnalyticsAllowed: Boolean
-        get() = analyticsPrefs.getBoolean("allowed", true)
+        get() = analyticsPrefs.analyticsAllowed
         set(value) {
-            analyticsPrefs.edit {
-                putBoolean("allowed", value)
-            }
+            analyticsPrefs.analyticsAllowed = value
 
             // Change the flag with the providers
             analytics.setEnabled(value && !isInTestLab) // Never do analytics in the test lab
         }
 
-    @Suppress("UNUSED_PARAMETER")
+    @Suppress("UnusedParameter")
     fun askToRate(activity: AppCompatActivity) {
-        // do nothing
+        // No-op for F-Droid version
     }
 
     override fun onCreate() {
         super.onCreate()
 
-        val nopAnalytics = com.geeksville.mesh.analytics.NopAnalytics(this)
+        if (BuildConfig.DEBUG) {
+            Timber.plant(Timber.DebugTree())
+        }
+
+        val nopAnalytics = NopAnalytics(this)
         analytics = nopAnalytics
         isAnalyticsAllowed = false
     }
 }
 
-fun Context.isGooglePlayAvailable(): Boolean = false
+val Context.isGooglePlayAvailable: Boolean
+    get() = false
+
+@Suppress("UnusedParameter")
+fun setAttributes(deviceVersion: String, deviceHardware: DeviceHardware) {
+    // No-op for F-Droid version
+    info("Setting attributes: deviceVersion=$deviceVersion, deviceHardware=$deviceHardware")
+}
+
+@Composable
+fun AddNavigationTracking(navController: NavHostController) {
+    // No-op for F-Droid version
+    navController.addOnDestinationChangedListener { _, destination, _ ->
+        debug("Navigation changed to: ${destination.route}")
+    }
+}

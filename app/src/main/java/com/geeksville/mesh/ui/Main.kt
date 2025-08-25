@@ -15,47 +15,35 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+@file:Suppress("MatchingDeclarationName")
+
 package com.geeksville.mesh.ui
 
+import android.Manifest
+import android.os.Build
 import androidx.annotation.StringRes
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.background
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.recalculateWindowInsets
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Surface
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.twotone.Chat
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.twotone.CloudDone
-import androidx.compose.material.icons.twotone.CloudOff
-import androidx.compose.material.icons.twotone.CloudUpload
-import androidx.compose.material.icons.twotone.Contactless
-import androidx.compose.material.icons.twotone.Map
-import androidx.compose.material.icons.twotone.People
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material.icons.rounded.QrCode2
+import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.PlainTooltip
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
@@ -63,30 +51,35 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.vectorResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
-import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.geeksville.mesh.BuildConfig
+import com.geeksville.mesh.MeshProtos
 import com.geeksville.mesh.R
+import com.geeksville.mesh.android.AddNavigationTracking
+import com.geeksville.mesh.android.BuildUtils.debug
+import com.geeksville.mesh.android.setAttributes
+import com.geeksville.mesh.model.BTScanModel
 import com.geeksville.mesh.model.BluetoothViewModel
 import com.geeksville.mesh.model.DeviceVersion
 import com.geeksville.mesh.model.Node
@@ -99,50 +92,80 @@ import com.geeksville.mesh.navigation.NavGraph
 import com.geeksville.mesh.navigation.NodesRoutes
 import com.geeksville.mesh.navigation.RadioConfigRoutes
 import com.geeksville.mesh.navigation.Route
-import com.geeksville.mesh.navigation.showLongNameTitle
+import com.geeksville.mesh.repository.radio.MeshActivity
+import com.geeksville.mesh.service.ConnectionState
 import com.geeksville.mesh.service.MeshService
-import com.geeksville.mesh.ui.TopLevelDestination.Companion.isTopLevel
+import com.geeksville.mesh.ui.common.components.MainAppBar
+import com.geeksville.mesh.ui.common.components.MainMenuAction
 import com.geeksville.mesh.ui.common.components.MultipleChoiceAlertDialog
 import com.geeksville.mesh.ui.common.components.ScannedQrCodeDialog
 import com.geeksville.mesh.ui.common.components.SimpleAlertDialog
-import com.geeksville.mesh.ui.debug.DebugMenuActions
-import com.geeksville.mesh.ui.node.components.NodeChip
+import com.geeksville.mesh.ui.common.icons.Conversations
+import com.geeksville.mesh.ui.common.icons.Map
+import com.geeksville.mesh.ui.common.icons.MeshtasticIcons
+import com.geeksville.mesh.ui.common.icons.Nodes
+import com.geeksville.mesh.ui.common.theme.StatusColors.StatusBlue
+import com.geeksville.mesh.ui.common.theme.StatusColors.StatusGreen
+import com.geeksville.mesh.ui.connections.DeviceType
+import com.geeksville.mesh.ui.connections.components.TopLevelNavIcon
 import com.geeksville.mesh.ui.node.components.NodeMenuAction
-import com.geeksville.mesh.ui.radioconfig.RadioConfigMenuActions
 import com.geeksville.mesh.ui.sharing.SharedContactDialog
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
 enum class TopLevelDestination(@StringRes val label: Int, val icon: ImageVector, val route: Route) {
-    Contacts(R.string.contacts, Icons.AutoMirrored.TwoTone.Chat, ContactsRoutes.Contacts),
-    Nodes(R.string.nodes, Icons.TwoTone.People, NodesRoutes.Nodes),
-    Map(R.string.map, Icons.TwoTone.Map, MapRoutes.Map),
-    Channels(R.string.channels, Icons.TwoTone.Contactless, ChannelsRoutes.Channels),
-    Connections(R.string.connections, Icons.TwoTone.CloudOff, ConnectionsRoutes.Connections),
+    Conversations(R.string.conversations, MeshtasticIcons.Conversations, ContactsRoutes.ContactsGraph),
+    Nodes(R.string.nodes, MeshtasticIcons.Nodes, NodesRoutes.NodesGraph),
+    Map(R.string.map, MeshtasticIcons.Map, MapRoutes.Map),
+    Share(R.string.bottom_nav_share, Icons.Rounded.QrCode2, ChannelsRoutes.ChannelsGraph),
+    Connections(R.string.connections, Icons.Rounded.Wifi, ConnectionsRoutes.ConnectionsGraph),
     ;
 
     companion object {
-        fun NavDestination.isTopLevel(): Boolean = entries.any { hasRoute(it.route::class) }
+        fun NavDestination.isTopLevel(): Boolean = listOf<Route>(
+            ContactsRoutes.Contacts,
+            NodesRoutes.Nodes,
+            MapRoutes.Map,
+            ChannelsRoutes.Channels,
+            ConnectionsRoutes.Connections,
+        )
+            .any { this.hasRoute(it::class) }
 
-        fun fromNavDestination(destination: NavDestination?): TopLevelDestination? = entries
-            .find { dest -> destination?.hierarchy?.any { it.hasRoute(dest.route::class) } == true }
+        fun fromNavDestination(destination: NavDestination?): TopLevelDestination? =
+            entries.find { dest -> destination?.hierarchy?.any { it.hasRoute(dest.route::class) } == true }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Suppress("LongMethod", "CyclomaticComplexMethod")
 @Composable
 fun MainScreen(
     uIViewModel: UIViewModel = hiltViewModel(),
     bluetoothViewModel: BluetoothViewModel = hiltViewModel(),
+    scanModel: BTScanModel = hiltViewModel(),
     onAction: (MainMenuAction) -> Unit,
 ) {
     val navController = rememberNavController()
     val connectionState by uIViewModel.connectionState.collectAsStateWithLifecycle()
     val localConfig by uIViewModel.localConfig.collectAsStateWithLifecycle()
     val requestChannelSet by uIViewModel.requestChannelSet.collectAsStateWithLifecycle()
-    if (connectionState.isConnected()) {
-        requestChannelSet?.let { newChannelSet ->
-            ScannedQrCodeDialog(uIViewModel, newChannelSet)
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val notificationPermissionState = rememberPermissionState(Manifest.permission.POST_NOTIFICATIONS)
+        LaunchedEffect(connectionState, notificationPermissionState) {
+            if (connectionState == ConnectionState.CONNECTED && !notificationPermissionState.status.isGranted) {
+                notificationPermissionState.launchPermissionRequest()
+            }
         }
+    }
+
+    AddNavigationTracking(navController)
+
+    if (connectionState == ConnectionState.CONNECTED) {
+        requestChannelSet?.let { newChannelSet -> ScannedQrCodeDialog(uIViewModel, newChannelSet) }
     }
 
     VersionChecks(uIViewModel)
@@ -179,9 +202,7 @@ fun MainScreen(
             }
         SimpleAlertDialog(
             title = R.string.client_notification,
-            text = {
-                Text(text = message)
-            },
+            text = { Text(text = message) },
             onConfirm = {
                 if (compromisedKeys) {
                     navController.navigate(RadioConfigRoutes.Security)
@@ -195,21 +216,52 @@ fun MainScreen(
     traceRouteResponse?.let { response ->
         SimpleAlertDialog(
             title = R.string.traceroute,
-            text = {
-                Text(text = response)
-            },
+            text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) { Text(text = response) } },
             dismissText = stringResource(id = R.string.okay),
-            onDismiss = { uIViewModel.clearTracerouteResponse() }
+            onDismiss = { uIViewModel.clearTracerouteResponse() },
         )
     }
-    val navSuiteType =
-        NavigationSuiteScaffoldDefaults.navigationSuiteType(currentWindowAdaptiveInfo())
+    val navSuiteType = NavigationSuiteScaffoldDefaults.navigationSuiteType(currentWindowAdaptiveInfo())
     val currentDestination = navController.currentBackStackEntryAsState().value?.destination
     val topLevelDestination = TopLevelDestination.fromNavDestination(currentDestination)
+
+    // State for determining the connection type icon to display
+    val selectedDevice by scanModel.selectedNotNullFlow.collectAsStateWithLifecycle()
+
+    // State for managing the glow animation around the Connections icon
+    var currentGlowColor by remember { mutableStateOf(Color.Transparent) }
+    val animatedGlowAlpha = remember { Animatable(0f) }
+    val coroutineScope = rememberCoroutineScope()
+    val capturedColorScheme = colorScheme // Capture current colorScheme instance for LaunchedEffect
+
+    val sendColor = capturedColorScheme.StatusGreen
+    val receiveColor = capturedColorScheme.StatusBlue
+    LaunchedEffect(uIViewModel.meshActivity, capturedColorScheme) {
+        uIViewModel.meshActivity.collectLatest { activity ->
+            debug("MeshActivity Event: $activity, Current Alpha: ${animatedGlowAlpha.value}")
+
+            val newTargetColor =
+                when (activity) {
+                    is MeshActivity.Send -> sendColor
+                    is MeshActivity.Receive -> receiveColor
+                }
+
+            currentGlowColor = newTargetColor
+            // Stop any existing animation and launch a new one.
+            // Launching in a new coroutine ensures the collect block is not suspended.
+            coroutineScope.launch {
+                animatedGlowAlpha.stop() // Stop before snapping/animating
+                animatedGlowAlpha.snapTo(1.0f) // Show glow instantly
+                animatedGlowAlpha.animateTo(
+                    targetValue = 0.0f, // Fade out
+                    animationSpec = tween(durationMillis = 1000, easing = LinearEasing),
+                )
+            }
+        }
+    }
+
     NavigationSuiteScaffold(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
+        modifier = Modifier.fillMaxSize(),
         navigationSuiteItems = {
             TopLevelDestination.entries.forEach { destination ->
                 val isSelected = destination == topLevelDestination
@@ -222,16 +274,54 @@ fun MainScreen(
                                 PlainTooltip {
                                     Text(
                                         if (isConnectionsRoute) {
-                                            connectionState.getTooltipString()
+                                            when (connectionState) {
+                                                ConnectionState.CONNECTED -> stringResource(R.string.connected)
+                                                ConnectionState.DEVICE_SLEEP -> stringResource(R.string.device_sleeping)
+                                                ConnectionState.DISCONNECTED -> stringResource(R.string.disconnected)
+                                            }
                                         } else {
                                             stringResource(id = destination.label)
                                         },
                                     )
                                 }
                             },
-                            state = rememberTooltipState()
+                            state = rememberTooltipState(),
                         ) {
-                            TopLevelNavIcon(destination, connectionState)
+                            val iconModifier =
+                                if (isConnectionsRoute) {
+                                    Modifier.drawWithCache {
+                                        onDrawWithContent {
+                                            drawContent()
+                                            if (animatedGlowAlpha.value > 0f) {
+                                                val glowRadius = size.minDimension
+                                                drawCircle(
+                                                    brush =
+                                                    Brush.radialGradient(
+                                                        colors =
+                                                        listOf(
+                                                            currentGlowColor.copy(
+                                                                alpha = 0.8f * animatedGlowAlpha.value,
+                                                            ),
+                                                            currentGlowColor.copy(
+                                                                alpha = 0.4f * animatedGlowAlpha.value,
+                                                            ),
+                                                            Color.Transparent,
+                                                        ),
+                                                        center = center,
+                                                        radius = glowRadius,
+                                                    ),
+                                                    radius = glowRadius,
+                                                    blendMode = BlendMode.Screen,
+                                                )
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Modifier
+                                }
+                            Box(modifier = iconModifier) {
+                                TopLevelNavIcon(destination, connectionState, DeviceType.fromAddress(selectedDevice))
+                            }
                         }
                     },
                     selected = isSelected,
@@ -241,79 +331,54 @@ fun MainScreen(
                         }
                     },
                     onClick = {
-                        if (!isSelected) {
-                            navController.navigate(destination.route) {
-                                // Pop up to the start destination of the graph to
-                                // avoid building up a large stack of destinations
-                                // on the back stack as users select items
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
-                                }
-                                // Avoid multiple copies of the same destination when
-                                // reselecting the same item
-                                launchSingleTop = true
-                                // Restore state when reselecting a previously selected item
-                                restoreState = true
-                            }
+                        navController.navigate(destination.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
                         }
-                    }
+                    },
                 )
             }
-        }
+        },
     ) {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-            ) {
-            var sharedContact: Node? by remember { mutableStateOf(null) }
-            if (sharedContact != null) {
-                SharedContactDialog(
-                    contact = sharedContact,
-                    onDismiss = { sharedContact = null }
-                )
-            }
-            MainAppBar(
-                viewModel = uIViewModel,
-                isManaged = localConfig.security.isManaged,
-                navController = navController,
-                onAction = { action ->
-                    if (action is MainMenuAction) {
-                        when (action) {
-                            MainMenuAction.DEBUG -> navController.navigate(Route.DebugPanel)
-                            MainMenuAction.RADIO_CONFIG -> navController.navigate(RadioConfigRoutes.RadioConfig())
-                            MainMenuAction.QUICK_CHAT -> navController.navigate(ContactsRoutes.QuickChat)
-                            else -> onAction(action)
-                        }
-                    } else if (action is NodeMenuAction) {
-                        when (action) {
-                            is NodeMenuAction.MoreDetails -> {
-                                navController.navigate(
-                                    NodesRoutes.NodeDetailGraph(
-                                        action.node.num
-                                    ),
-                                    {
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                )
+        Scaffold(snackbarHost = { SnackbarHost(uIViewModel.snackBarHostState) }) { _ ->
+            Column(modifier = Modifier.fillMaxSize()) {
+                var sharedContact: Node? by remember { mutableStateOf(null) }
+                if (sharedContact != null) {
+                    SharedContactDialog(contact = sharedContact, onDismiss = { sharedContact = null })
+                }
+                MainAppBar(
+                    viewModel = uIViewModel,
+                    isManaged = localConfig.security.isManaged,
+                    navController = navController,
+                    onAction = { action ->
+                        if (action is MainMenuAction) {
+                            when (action) {
+                                MainMenuAction.DEBUG -> navController.navigate(Route.DebugPanel)
+                                MainMenuAction.RADIO_CONFIG -> navController.navigate(RadioConfigRoutes.RadioConfig())
+                                MainMenuAction.QUICK_CHAT -> navController.navigate(ContactsRoutes.QuickChat)
+                                MainMenuAction.SHOW_INTRO -> uIViewModel.onMainMenuAction(action)
+                                else -> onAction(action)
                             }
+                        } else if (action is NodeMenuAction) {
+                            when (action) {
+                                is NodeMenuAction.MoreDetails -> {
+                                    navController.navigate(
+                                        NodesRoutes.NodeDetailGraph(action.node.num),
+                                        {
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        },
+                                    )
+                                }
 
-                            is NodeMenuAction.Share -> sharedContact = action.node
-                            else -> {}
+                                is NodeMenuAction.Share -> sharedContact = action.node
+                                else -> {}
+                            }
                         }
-                    }
-                },
-            )
+                    },
+                )
                 NavGraph(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .recalculateWindowInsets()
-                        .safeDrawingPadding()
-                        .imePadding(),
+                    modifier = Modifier.fillMaxSize().recalculateWindowInsets().safeDrawingPadding().imePadding(),
                     uIViewModel = uIViewModel,
                     bluetoothViewModel = bluetoothViewModel,
                     navController = navController,
@@ -324,20 +389,52 @@ fun MainScreen(
 }
 
 @Composable
-private fun VersionChecks(
-    viewModel: UIViewModel,
-) {
+@Suppress("LongMethod", "CyclomaticComplexMethod")
+private fun VersionChecks(viewModel: UIViewModel) {
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val myNodeInfo by viewModel.myNodeInfo.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    val myFirmwareVersion = myNodeInfo?.firmwareVersion
+
+    val firmwareEdition by viewModel.firmwareEdition.collectAsStateWithLifecycle(null)
+
+    val currentFirmwareVersion by viewModel.firmwareVersion.collectAsStateWithLifecycle(null)
+
+    val currentDeviceHardware by viewModel.deviceHardware.collectAsStateWithLifecycle(null)
+
     val latestStableFirmwareRelease by
-    viewModel.latestStableFirmwareRelease.collectAsState(DeviceVersion("2.6.4"))
+        viewModel.latestStableFirmwareRelease.collectAsStateWithLifecycle(DeviceVersion("2.6.4"))
+    LaunchedEffect(connectionState, firmwareEdition) {
+        if (connectionState == ConnectionState.CONNECTED) {
+            firmwareEdition?.let { edition ->
+                debug("FirmwareEdition: ${edition.name}")
+                when (edition) {
+                    MeshProtos.FirmwareEdition.VANILLA -> {
+                        // Handle any specific logic for VANILLA firmware edition if needed
+                    }
+
+                    else -> {
+                        // Handle other firmware editions if needed
+                    }
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(connectionState, currentFirmwareVersion, currentDeviceHardware) {
+        if (connectionState == ConnectionState.CONNECTED) {
+            if (currentDeviceHardware != null && currentFirmwareVersion != null) {
+                setAttributes(currentFirmwareVersion!!, currentDeviceHardware!!)
+            }
+        }
+    }
+
     // Check if the device is running an old app version or firmware version
     LaunchedEffect(connectionState, myNodeInfo) {
-        if (connectionState == MeshService.ConnectionState.CONNECTED) {
+        if (connectionState == ConnectionState.CONNECTED) {
             myNodeInfo?.let { info ->
                 val isOld = info.minAppVersion > BuildConfig.VERSION_CODE
-                val curVer = DeviceVersion(info.firmwareVersion ?: "0.0.0")
                 if (isOld) {
                     viewModel.showAlert(
                         context.getString(R.string.app_too_old),
@@ -346,256 +443,32 @@ private fun VersionChecks(
                         onConfirm = {
                             val service = viewModel.meshService ?: return@showAlert
                             MeshService.changeDeviceAddress(context, service, "n")
+                        },
+                    )
+                } else {
+                    myFirmwareVersion?.let {
+                        val curVer = DeviceVersion(it)
+                        if (curVer < MeshService.absoluteMinDeviceVersion) {
+                            val title = context.getString(R.string.firmware_too_old)
+                            val message = context.getString(R.string.firmware_old)
+                            viewModel.showAlert(
+                                title = title,
+                                html = message,
+                                dismissable = false,
+                                onConfirm = {
+                                    val service = viewModel.meshService ?: return@showAlert
+                                    MeshService.changeDeviceAddress(context, service, "n")
+                                },
+                            )
+                        } else if (curVer < MeshService.minDeviceVersion) {
+                            val title = context.getString(R.string.should_update_firmware)
+                            val message =
+                                context.getString(R.string.should_update, latestStableFirmwareRelease.asString)
+                            viewModel.showAlert(title = title, message = message, dismissable = false, onConfirm = {})
                         }
-                    )
-                } else if (curVer < MeshService.absoluteMinDeviceVersion) {
-                    val title = context.getString(R.string.firmware_too_old)
-                    val message = context.getString(R.string.firmware_old)
-                    viewModel.showAlert(
-                        title = title,
-                        html = message,
-                        dismissable = false,
-                        onConfirm = {
-                            val service = viewModel.meshService ?: return@showAlert
-                            MeshService.changeDeviceAddress(context, service, "n")
-                        }
-                    )
-                } else if (curVer < MeshService.minDeviceVersion) {
-                    val title = context.getString(R.string.should_update_firmware)
-                    val message =
-                        context.getString(
-                            R.string.should_update,
-                            latestStableFirmwareRelease.asString
-                        )
-                    viewModel.showAlert(
-                        title = title,
-                        message = message,
-                        dismissable = false,
-                        onConfirm = {}
-                    )
+                    }
                 }
             }
         }
-    }
-}
-
-enum class MainMenuAction(@StringRes val stringRes: Int) {
-    DEBUG(R.string.debug_panel),
-    RADIO_CONFIG(R.string.radio_configuration),
-    EXPORT_MESSAGES(R.string.save_messages),
-    THEME(R.string.theme),
-    // LANGUAGE(R.string.preferences_language),
-    SHOW_INTRO(R.string.intro_show),
-    QUICK_CHAT(R.string.quick_chat),
-    ABOUT(R.string.about),
-}
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
-@Suppress("LongMethod")
-@Composable
-private fun MainAppBar(
-    viewModel: UIViewModel = hiltViewModel(),
-    isManaged: Boolean,
-    navController: NavHostController,
-    modifier: Modifier = Modifier,
-    onAction: (Any?) -> Unit
-) {
-    val backStackEntry by navController.currentBackStackEntryAsState()
-    val currentDestination = backStackEntry?.destination
-    val canNavigateBack = navController.previousBackStackEntry != null
-    val isTopLevelRoute = currentDestination?.isTopLevel() == true
-    val navigateUp: () -> Unit = navController::navigateUp
-    if (currentDestination?.hasRoute<ContactsRoutes.Messages>() == true) {
-        return
-    }
-    val title by viewModel.title.collectAsStateWithLifecycle("")
-    val onlineNodeCount by viewModel.onlineNodeCount.collectAsStateWithLifecycle(0)
-    val totalNodeCount by viewModel.totalNodeCount.collectAsStateWithLifecycle(0)
-    TopAppBar(
-        title = {
-            val title = when {
-                currentDestination == null || isTopLevelRoute -> stringResource(id = R.string.app_name)
-
-                currentDestination.hasRoute<Route.DebugPanel>() -> stringResource(id = R.string.debug_panel)
-
-                currentDestination.hasRoute<ContactsRoutes.QuickChat>() -> stringResource(id = R.string.quick_chat)
-
-                currentDestination.hasRoute<ContactsRoutes.Share>() -> stringResource(id = R.string.share_to)
-
-                currentDestination.showLongNameTitle() -> title
-
-                else -> stringResource(id = R.string.app_name)
-            }
-            Text(
-                text = title,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
-                ),
-            )
-        },
-        subtitle = {
-            if (currentDestination?.hasRoute<NodesRoutes.Nodes>() == true) {
-                Text(
-                    text = stringResource(
-                        R.string.node_count_template,
-                        onlineNodeCount,
-                        totalNodeCount
-                    ),
-                )
-            }
-        },
-        modifier = modifier,
-        navigationIcon = if (canNavigateBack && !isTopLevelRoute) {
-            {
-                IconButton(onClick = navigateUp) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = stringResource(id = R.string.navigate_back),
-                    )
-                }
-            }
-        } else {
-            {
-                IconButton(
-                    enabled = false,
-                    onClick = { },
-                ) {
-                    Icon(
-                        imageVector = ImageVector.vectorResource(id = R.drawable.app_icon),
-                        contentDescription = stringResource(id = R.string.application_icon),
-                    )
-                }
-            }
-        },
-        actions = {
-            TopBarActions(
-                viewModel = viewModel,
-                currentDestination = currentDestination,
-                isManaged = isManaged,
-                isTopLevelRoute = isTopLevelRoute,
-                onAction = onAction
-            )
-        },
-    )
-}
-
-@Composable
-private fun TopBarActions(
-    viewModel: UIViewModel = hiltViewModel(),
-    currentDestination: NavDestination?,
-    isManaged: Boolean,
-    isTopLevelRoute: Boolean,
-    onAction: (Any?) -> Unit
-) {
-    val ourNode by viewModel.ourNodeInfo.collectAsStateWithLifecycle()
-    val isConnected by viewModel.isConnected.collectAsStateWithLifecycle(false)
-    AnimatedVisibility(ourNode != null && currentDestination?.isTopLevel() == true && isConnected) {
-        ourNode?.let {
-            NodeChip(
-                node = it,
-                isThisNode = true,
-                isConnected = isConnected,
-                onAction = onAction
-            )
-        }
-    }
-    when {
-        currentDestination == null || isTopLevelRoute ->
-            MainMenuActions(isManaged, onAction)
-
-        currentDestination.hasRoute<Route.DebugPanel>() ->
-            DebugMenuActions()
-
-        currentDestination.hasRoute<RadioConfigRoutes.RadioConfig>() ->
-            RadioConfigMenuActions(viewModel = viewModel)
-
-        else -> {}
-    }
-}
-
-@Composable
-private fun MainMenuActions(
-    isManaged: Boolean,
-    onAction: (MainMenuAction) -> Unit
-) {
-    var showMenu by remember { mutableStateOf(false) }
-    IconButton(onClick = { showMenu = true }) {
-        Icon(
-            imageVector = Icons.Default.MoreVert,
-            contentDescription = stringResource(R.string.overflow_menu),
-        )
-    }
-
-    DropdownMenu(
-        expanded = showMenu,
-        onDismissRequest = { showMenu = false },
-        modifier = Modifier
-            .background(
-                MaterialTheme.colorScheme.surface,
-                RoundedCornerShape(16.dp)
-            )
-            .clip(RoundedCornerShape(16.dp))
-,
-    ) {
-        MainMenuAction.entries.forEach { action ->
-            DropdownMenuItem(
-                text = { Text(stringResource(id = action.stringRes)) },
-                onClick = {
-                    onAction(action)
-                    showMenu = false
-                },
-                enabled = when (action) {
-                    MainMenuAction.RADIO_CONFIG -> !isManaged
-                    else -> true
-                },
-            )
-        }
-    }
-}
-
-@Composable
-private fun MeshService.ConnectionState.getConnectionColor(): Color {
-    return when (this) {
-        MeshService.ConnectionState.CONNECTED -> Color(color = 0xFF30C047)
-        MeshService.ConnectionState.DEVICE_SLEEP -> MaterialTheme.colorScheme.tertiary
-        MeshService.ConnectionState.DISCONNECTED -> MaterialTheme.colorScheme.error
-    }
-}
-
-private fun MeshService.ConnectionState.getConnectionIcon(): ImageVector {
-    return when (this) {
-        MeshService.ConnectionState.CONNECTED -> Icons.TwoTone.CloudDone
-        MeshService.ConnectionState.DEVICE_SLEEP -> Icons.TwoTone.CloudUpload
-        MeshService.ConnectionState.DISCONNECTED -> Icons.TwoTone.CloudOff
-    }
-}
-
-@Composable
-private fun MeshService.ConnectionState.getTooltipString(): String {
-    return when (this) {
-        MeshService.ConnectionState.CONNECTED -> stringResource(R.string.connected)
-        MeshService.ConnectionState.DEVICE_SLEEP -> stringResource(R.string.device_sleeping)
-        MeshService.ConnectionState.DISCONNECTED -> stringResource(R.string.disconnected)
-    }
-}
-
-@Composable
-private fun TopLevelNavIcon(
-    dest: TopLevelDestination,
-    connectionState: MeshService.ConnectionState
-) {
-    when (dest) {
-        TopLevelDestination.Connections -> Icon(
-            imageVector = connectionState.getConnectionIcon(),
-            contentDescription = stringResource(id = dest.label),
-            tint = connectionState.getConnectionColor(),
-        )
-
-        else -> Icon(
-            imageVector = dest.icon,
-            contentDescription = stringResource(id = dest.label),
-        )
     }
 }

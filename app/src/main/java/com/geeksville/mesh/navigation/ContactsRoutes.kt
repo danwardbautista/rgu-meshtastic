@@ -31,42 +31,38 @@ import com.geeksville.mesh.ui.sharing.ShareScreen
 import kotlinx.serialization.Serializable
 
 sealed class ContactsRoutes {
-    @Serializable
-    data object Contacts : Route
+    @Serializable data object Contacts : Route
 
-    @Serializable
-    data class Messages(val contactKey: String, val message: String = "") : Route
+    @Serializable data class Messages(val contactKey: String, val message: String = "") : Route
 
-    @Serializable
-    data class Share(val message: String) : Route
+    @Serializable data class Share(val message: String) : Route
 
-    @Serializable
-    data object QuickChat : Route
+    @Serializable data object QuickChat : Route
 
-    @Serializable
-    data object ContactsGraph : Graph
+    @Serializable data object ContactsGraph : Graph
 }
 
-fun NavGraphBuilder.contactsGraph(
-    navController: NavHostController,
-    uiViewModel: UIViewModel,
-) {
-    navigation<ContactsRoutes.ContactsGraph>(
-        startDestination = ContactsRoutes.Contacts,
-    ) {
-        composable<ContactsRoutes.Contacts> {
+@Suppress("LongMethod")
+fun NavGraphBuilder.contactsGraph(navController: NavHostController, uiViewModel: UIViewModel) {
+    navigation<ContactsRoutes.ContactsGraph>(startDestination = ContactsRoutes.Contacts) {
+        composable<ContactsRoutes.Contacts>(
+            deepLinks = listOf(navDeepLink<ContactsRoutes.Contacts>(basePath = "$DEEP_LINK_BASE_URI/contacts")),
+        ) {
             ContactsScreen(
                 uiViewModel,
-                onNavigateToMessages = { navController.navigate(ContactsRoutes.Messages(it)) }
+                onNavigateToMessages = { navController.navigate(ContactsRoutes.Messages(it)) },
+                onNavigateToNodeDetails = { navController.navigate(NodesRoutes.NodeDetailGraph(it)) },
+                onNavigateToShare = { navController.navigate(ChannelsRoutes.ChannelsGraph) },
             )
         }
         composable<ContactsRoutes.Messages>(
-            deepLinks = listOf(
-                navDeepLink {
-                    uriPattern = "$DEEP_LINK_BASE_URI/messages/{contactKey}?message={message}"
-                    action = "android.intent.action.VIEW"
-                },
-            )
+            deepLinks =
+            listOf(
+                navDeepLink<ContactsRoutes.Messages>(
+                    basePath =
+                    "$DEEP_LINK_BASE_URI/messages", // {contactKey} and ?message={message} are auto-appended
+                ),
+            ),
         ) { backStackEntry ->
             val args = backStackEntry.toRoute<ContactsRoutes.Messages>()
             MessageScreen(
@@ -75,17 +71,18 @@ fun NavGraphBuilder.contactsGraph(
                 viewModel = uiViewModel,
                 navigateToMessages = { navController.navigate(ContactsRoutes.Messages(it)) },
                 navigateToNodeDetails = { navController.navigate(NodesRoutes.NodeDetailGraph(it)) },
+                navigateToQuickChatOptions = { navController.navigate(ContactsRoutes.QuickChat) },
                 onNavigateBack = navController::navigateUp,
             )
         }
     }
     composable<ContactsRoutes.Share>(
-        deepLinks = listOf(
-            navDeepLink {
-                uriPattern = "$DEEP_LINK_BASE_URI/share?message={message}"
-                action = "android.intent.action.VIEW"
-            }
-        )
+        deepLinks =
+        listOf(
+            navDeepLink<ContactsRoutes.Share>(
+                basePath = "$DEEP_LINK_BASE_URI/share", // ?message={message} is auto-appended
+            ),
+        ),
     ) { backStackEntry ->
         val message = backStackEntry.toRoute<ContactsRoutes.Share>().message
         ShareScreen(uiViewModel) {
@@ -94,7 +91,9 @@ fun NavGraphBuilder.contactsGraph(
             }
         }
     }
-    composable<ContactsRoutes.QuickChat> {
+    composable<ContactsRoutes.QuickChat>(
+        deepLinks = listOf(navDeepLink<ContactsRoutes.QuickChat>(basePath = "$DEEP_LINK_BASE_URI/quick_chat")),
+    ) {
         QuickChatScreen()
     }
 }

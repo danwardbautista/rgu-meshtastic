@@ -27,8 +27,11 @@ import com.geeksville.mesh.TelemetryProtos.EnvironmentMetrics
 import com.geeksville.mesh.TelemetryProtos.PowerMetrics
 import com.geeksville.mesh.database.entity.NodeEntity
 import com.geeksville.mesh.util.GPSFormat
+import com.geeksville.mesh.util.UnitConversions.celsiusToFahrenheit
 import com.geeksville.mesh.util.latLongToMeter
 import com.geeksville.mesh.util.toDistanceString
+import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.isNotEmpty
 
 @Suppress("MagicNumber")
 data class Node(
@@ -48,6 +51,7 @@ data class Node(
     val environmentMetrics: EnvironmentMetrics = EnvironmentMetrics.getDefaultInstance(),
     val powerMetrics: PowerMetrics = PowerMetrics.getDefaultInstance(),
     val paxcounter: PaxcountProtos.Paxcount = PaxcountProtos.Paxcount.getDefaultInstance(),
+    val publicKey: ByteString? = null,
 ) {
     val colors: Pair<Int, Int>
         get() { // returns foreground and background @ColorInt for each 'num'
@@ -58,9 +62,14 @@ data class Node(
             return (if (brightness > 0.5) Color.BLACK else Color.WHITE) to Color.rgb(r, g, b)
         }
 
-    val isUnknownUser get() = user.hwModel == MeshProtos.HardwareModel.UNSET
-    val hasPKC get() = !user.publicKey.isEmpty
-    val mismatchKey get() = user.publicKey == NodeEntity.ERROR_BYTE_STRING
+    val isUnknownUser
+        get() = user.hwModel == MeshProtos.HardwareModel.UNSET
+
+    val hasPKC
+        get() = (publicKey ?: user.publicKey).isNotEmpty()
+
+    val mismatchKey
+        get() = (publicKey ?: user.publicKey) == NodeEntity.ERROR_BYTE_STRING
 
     val hasEnvironmentMetrics: Boolean
         get() = environmentMetrics != EnvironmentMetrics.getDefaultInstance()
@@ -68,20 +77,28 @@ data class Node(
     val hasPowerMetrics: Boolean
         get() = powerMetrics != PowerMetrics.getDefaultInstance()
 
-    val batteryLevel get() = deviceMetrics.batteryLevel
-    val voltage get() = deviceMetrics.voltage
-    val batteryStr get() = if (batteryLevel in 1..100) "$batteryLevel%" else ""
+    val batteryLevel
+        get() = deviceMetrics.batteryLevel
 
-    val latitude get() = position.latitudeI * 1e-7
-    val longitude get() = position.longitudeI * 1e-7
+    val voltage
+        get() = deviceMetrics.voltage
 
-    private fun hasValidPosition(): Boolean {
-        return latitude != 0.0 && longitude != 0.0 &&
-                (latitude >= -90 && latitude <= 90.0) &&
-                (longitude >= -180 && longitude <= 180)
-    }
+    val batteryStr
+        get() = if (batteryLevel in 1..100) "$batteryLevel%" else ""
 
-    val validPosition: MeshProtos.Position? get() = position.takeIf { hasValidPosition() }
+    val latitude
+        get() = position.latitudeI * 1e-7
+
+    val longitude
+        get() = position.longitudeI * 1e-7
+
+    private fun hasValidPosition(): Boolean = latitude != 0.0 &&
+        longitude != 0.0 &&
+        (latitude >= -90 && latitude <= 90.0) &&
+        (longitude >= -180 && longitude <= 180)
+
+    val validPosition: MeshProtos.Position?
+        get() = position.takeIf { hasValidPosition() }
 
     // @return distance in meters to some other node (or null if unknown)
     fun distance(o: Node): Int? = when {
@@ -99,55 +116,58 @@ data class Node(
         else -> com.geeksville.mesh.util.bearing(latitude, longitude, o.latitude, o.longitude).toInt()
     }
 
-    fun gpsString(gpsFormat: Int): String = when (gpsFormat) {
-        DisplayConfig.GpsCoordinateFormat.DEC_VALUE -> GPSFormat.toDEC(latitude, longitude)
-        DisplayConfig.GpsCoordinateFormat.DMS_VALUE -> GPSFormat.toDMS(latitude, longitude)
-        DisplayConfig.GpsCoordinateFormat.UTM_VALUE -> GPSFormat.toUTM(latitude, longitude)
-        DisplayConfig.GpsCoordinateFormat.MGRS_VALUE -> GPSFormat.toMGRS(latitude, longitude)
-        else -> GPSFormat.toDEC(latitude, longitude)
-    }
+    fun gpsString(): String = GPSFormat.toDec(latitude, longitude)
 
     private fun EnvironmentMetrics.getDisplayString(isFahrenheit: Boolean): String {
-        val temp = if (temperature != 0f) {
-            if (isFahrenheit) {
-                val fahrenheit = temperature * 1.8F + 32
-                "%.1f°F".format(fahrenheit)
+        val temp =
+            if (temperature != 0f) {
+                if (isFahrenheit) {
+                    "%.1f°F".format(celsiusToFahrenheit(temperature))
+                } else {
+                    "%.1f°C".format(temperature)
+                }
             } else {
-                "%.1f°C".format(temperature)
+                null
             }
-        } else {
-            null
-        }
         val humidity = if (relativeHumidity != 0f) "%.0f%%".format(relativeHumidity) else null
+        val soilTemperatureStr =
+            if (soilTemperature != 0f) {
+                if (isFahrenheit) {
+                    "%.1f°F".format(celsiusToFahrenheit(soilTemperature))
+                } else {
+                    "%.1f°C".format(soilTemperature)
+                }
+            } else {
+                null
+            }
+        val soilMoistureRange = 0..100
+        val soilMoisture =
+            if (soilMoisture in soilMoistureRange && soilTemperature != 0f) {
+                "%d%%".format(soilMoisture)
+            } else {
+                null
+            }
         val voltage = if (this.voltage != 0f) "%.2fV".format(this.voltage) else null
         val current = if (current != 0f) "%.1fmA".format(current) else null
         val iaq = if (iaq != 0) "IAQ: $iaq" else null
 
-        return listOfNotNull(
-            temp,
-            humidity,
-            voltage,
-            current,
-            iaq,
-        ).joinToString(" ")
+        return listOfNotNull(temp, humidity, soilTemperatureStr, soilMoisture, voltage, current, iaq).joinToString(" ")
     }
 
     private fun PaxcountProtos.Paxcount.getDisplayString() =
         "PAX: ${ble + wifi} (B:$ble/W:$wifi)".takeIf { ble != 0 || wifi != 0 }
 
-    fun getTelemetryString(isFahrenheit: Boolean = false): String {
-        return listOfNotNull(
-            paxcounter.getDisplayString(),
-            environmentMetrics.getDisplayString(isFahrenheit),
-        ).joinToString(" ")
-    }
+    fun getTelemetryString(isFahrenheit: Boolean = false): String =
+        listOfNotNull(paxcounter.getDisplayString(), environmentMetrics.getDisplayString(isFahrenheit))
+            .joinToString(" ")
 }
 
-fun ConfigProtos.Config.DeviceConfig.Role?.isUnmessageableRole(): Boolean = this in listOf(
-    ConfigProtos.Config.DeviceConfig.Role.REPEATER,
-    ConfigProtos.Config.DeviceConfig.Role.ROUTER,
-    ConfigProtos.Config.DeviceConfig.Role.ROUTER_LATE,
-    ConfigProtos.Config.DeviceConfig.Role.SENSOR,
-    ConfigProtos.Config.DeviceConfig.Role.TRACKER,
-    ConfigProtos.Config.DeviceConfig.Role.TAK_TRACKER,
-)
+fun ConfigProtos.Config.DeviceConfig.Role?.isUnmessageableRole(): Boolean = this in
+    listOf(
+        ConfigProtos.Config.DeviceConfig.Role.REPEATER,
+        ConfigProtos.Config.DeviceConfig.Role.ROUTER,
+        ConfigProtos.Config.DeviceConfig.Role.ROUTER_LATE,
+        ConfigProtos.Config.DeviceConfig.Role.SENSOR,
+        ConfigProtos.Config.DeviceConfig.Role.TRACKER,
+        ConfigProtos.Config.DeviceConfig.Role.TAK_TRACKER,
+    )

@@ -100,12 +100,11 @@
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="false"
-        android:icon="@mipmap/ic_launcher2"
+        android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher2_round"
         android:supportsRtl="true"
         android:hardwareAccelerated="true"
-        android:theme="@style/AppTheme"
+        android:theme="@style/SplashTheme"
         android:localeConfig="@xml/locales_config">
 
         <!-- Default crash collection and analytics off until we (possibly) turn it on in application.onCreate -->
@@ -163,11 +162,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
 
-                <data android:scheme="meshtastic" />
-                <data android:host="meshtastic" />
-                <data android:pathPrefix="/messages" />
-                <data android:pathPrefix="/share" />
-                <data android:pathPrefix="/settings" />
+                <data android:scheme="meshtastic" android:host="meshtastic" />
             </intent-filter>
 
             <intent-filter android:autoVerify="true">

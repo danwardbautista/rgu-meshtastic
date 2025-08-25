@@ -14,6 +14,8 @@ Thank you for your interest in contributing to Meshtastic-Android! We welcome co
 
 - Follow the [Kotlin Coding Conventions](https://kotlinlang.org/docs/coding-conventions.html) for Kotlin code.
 - Use Android Studio's default formatting settings.
+- We use [spotless](https://github.com/diffplug/spotless) for automated code formatting. You can run `./gradlew spotlessApply` to format your code automatically.
+  - You can also run `./gradlew spotlessInstallGitPrePushHook --no-configuration-cache` to install a pre-push Git hook that will run a `spotlessCheck`.
 - Write clear, descriptive variable and function names.
 - Add comments where necessary, especially for complex logic.
 - Keep methods and classes focused and concise.
@@ -60,6 +62,12 @@ Comprehensive testing helps prevent regressions and ensures a stable experience 
 
 ## Pull Requests
 
+- branches should start with:
+    - bugfix
+    - enhancement
+    - dependencies
+    - repo
+    - reserved (release, automation)
 - Ensure your branch is up to date with the latest `main` branch before submitting a PR.
 - Provide a meaningful title and description for your PR.
 - Inlude information on how to test and/or replicate if it is not obvious.

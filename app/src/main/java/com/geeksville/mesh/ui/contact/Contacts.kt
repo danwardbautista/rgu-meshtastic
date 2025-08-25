@@ -32,9 +32,11 @@ import androidx.compose.material.icons.automirrored.twotone.VolumeUp
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.rounded.QrCode2
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.RadioButton
@@ -68,7 +70,9 @@ import java.util.concurrent.TimeUnit
 @Composable
 fun ContactsScreen(
     uiViewModel: UIViewModel = hiltViewModel(),
-    onNavigateToMessages: (String) -> Unit = {}
+    onNavigateToMessages: (String) -> Unit = {},
+    onNavigateToNodeDetails: (Int) -> Unit = {},
+    onNavigateToShare: () -> Unit,
 ) {
     var showMuteDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -81,9 +85,8 @@ fun ContactsScreen(
     val contacts by uiViewModel.contactList.collectAsStateWithLifecycle()
 
     // Derived state for selected contacts and count
-    val selectedContacts = remember(contacts, selectedContactKeys) {
-        contacts.filter { it.contactKey in selectedContactKeys }
-    }
+    val selectedContacts =
+        remember(contacts, selectedContactKeys) { contacts.filter { it.contactKey in selectedContactKeys } }
     val selectedCount = remember(selectedContacts) { selectedContacts.sumOf { it.messageCount } }
     val isAllMuted = remember(selectedContacts) { selectedContacts.all { it.isMuted } }
 
@@ -99,6 +102,21 @@ fun ContactsScreen(
         } else {
             // If not in selection mode, navigate to messages
             onNavigateToMessages(contact.contactKey)
+        }
+    }
+
+    val onNodeChipClick: (Contact) -> Unit = { contact ->
+        if (contact.contactKey.contains("!")) {
+            // if it's a node, look up the nodeNum including the !
+            val nodeKey = contact.contactKey.substring(1)
+            val node = uiViewModel.getNode(nodeKey)
+
+            if (node != null) {
+                // navigate to node details.
+                onNavigateToNodeDetails(node.num)
+            }
+        } else {
+            // Channels
         }
     }
 
@@ -122,20 +140,19 @@ fun ContactsScreen(
                 SelectionToolbar(
                     selectedCount = selectedContactKeys.size,
                     onCloseSelection = { selectedContactKeys.clear() },
-                    onMuteSelected = {
-                        showMuteDialog = true
-                    },
-                    onDeleteSelected = {
-                        showDeleteDialog = true
-                    },
+                    onMuteSelected = { showMuteDialog = true },
+                    onDeleteSelected = { showDeleteDialog = true },
                     onSelectAll = {
                         selectedContactKeys.clear()
                         selectedContactKeys.addAll(contacts.map { it.contactKey })
                     },
-                    isAllMuted = isAllMuted // Pass the derived state
+                    isAllMuted = isAllMuted, // Pass the derived state
                 )
             }
-        }
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = onNavigateToShare) { Icon(Icons.Rounded.QrCode2, contentDescription = null) }
+        },
     ) { paddingValues ->
         val channels by uiViewModel.channels.collectAsStateWithLifecycle()
         ContactListView(
@@ -144,7 +161,8 @@ fun ContactsScreen(
             onClick = onContactClick,
             onLongClick = onContactLongClick,
             contentPadding = paddingValues,
-            channels = channels
+            channels = channels,
+            onNodeChipClick = onNodeChipClick,
         )
     }
     DeleteConfirmationDialog(
@@ -155,7 +173,7 @@ fun ContactsScreen(
             showDeleteDialog = false
             uiViewModel.deleteContacts(selectedContactKeys.toList())
             selectedContactKeys.clear()
-        }
+        },
     )
 
     MuteNotificationsDialog(
@@ -165,7 +183,7 @@ fun ContactsScreen(
             showMuteDialog = false
             uiViewModel.setMuteUntil(selectedContactKeys.toList(), muteUntil)
             selectedContactKeys.clear()
-        }
+        },
     )
 }
 
@@ -174,7 +192,7 @@ fun ContactsScreen(
 fun MuteNotificationsDialog(
     showDialog: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: (Long) -> Unit // Lambda to handle the confirmed mute duration
+    onConfirm: (Long) -> Unit, // Lambda to handle the confirmed mute duration
 ) {
     if (showDialog) {
         // Options for mute duration
@@ -183,7 +201,7 @@ fun MuteNotificationsDialog(
                 R.string.unmute to 0L,
                 R.string.mute_8_hours to TimeUnit.HOURS.toMillis(8),
                 R.string.mute_1_week to TimeUnit.DAYS.toMillis(7),
-                R.string.mute_always to Long.MAX_VALUE
+                R.string.mute_always to Long.MAX_VALUE,
             )
         }
 
@@ -192,32 +210,21 @@ fun MuteNotificationsDialog(
 
         AlertDialog(
             onDismissRequest = onDismiss, // Dismiss the dialog when clicked outside
-            title = {
-                Text(text = stringResource(R.string.mute_notifications))
-            },
+            title = { Text(text = stringResource(R.string.mute_notifications)) },
             text = {
                 Column {
                     muteOptions.forEachIndexed { index, (stringRes, _) ->
                         val isSelected = index == selectedOptionIndex
                         val text = stringResource(stringRes)
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .selectable(
-                                    selected = isSelected,
-                                    onClick = { selectedOptionIndex = index }
-                                )
+                            modifier =
+                            Modifier.fillMaxWidth()
+                                .selectable(selected = isSelected, onClick = { selectedOptionIndex = index })
                                 .padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            RadioButton(
-                                selected = isSelected,
-                                onClick = { selectedOptionIndex = index }
-                            )
-                            Text(
-                                text = text,
-                                modifier = Modifier.padding(start = 8.dp)
-                            )
+                            RadioButton(selected = isSelected, onClick = { selectedOptionIndex = index })
+                            Text(text = text, modifier = Modifier.padding(start = 8.dp))
                         }
                     }
                 }
@@ -228,18 +235,18 @@ fun MuteNotificationsDialog(
                         val selectedMuteDuration = muteOptions[selectedOptionIndex].second
                         onConfirm(selectedMuteDuration)
                         onDismiss() // Dismiss the dialog after confirming
-                    }
+                    },
                 ) {
                     Text(stringResource(R.string.okay))
                 }
             },
             dismissButton = {
                 Button(
-                    onClick = onDismiss // Dismiss the dialog on cancel
+                    onClick = onDismiss, // Dismiss the dialog on cancel
                 ) {
                     Text(stringResource(R.string.cancel))
                 }
-            }
+            },
         )
     }
 }
@@ -249,44 +256,38 @@ fun DeleteConfirmationDialog(
     showDialog: Boolean,
     selectedCount: Int, // Number of items to be deleted
     onDismiss: () -> Unit,
-    onConfirm: () -> Unit // Lambda to handle the delete action
+    onConfirm: () -> Unit, // Lambda to handle the delete action
 ) {
     if (showDialog) {
-        val deleteMessage = pluralStringResource(
-            id = R.plurals.delete_messages,
-            count = selectedCount,
-            formatArgs = arrayOf(selectedCount) // Pass the count as a format argument
-        )
+        val deleteMessage =
+            pluralStringResource(
+                id = R.plurals.delete_messages,
+                count = selectedCount,
+                formatArgs = arrayOf(selectedCount), // Pass the count as a format argument
+            )
 
         AlertDialog(
             onDismissRequest = onDismiss,
             title = {
                 // Optional: You could add a title here if needed, e.g., "Confirm Deletion"
             },
-            text = {
-                Text(text = deleteMessage)
-            },
+            text = { Text(text = deleteMessage) },
             confirmButton = {
                 Button(
                     onClick = {
                         onConfirm()
                         onDismiss() // Dismiss the dialog after confirming
-                    }
+                    },
                 ) {
                     Text(stringResource(R.string.delete))
                 }
             },
-            dismissButton = {
-                Button(
-                    onClick = onDismiss
-                ) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
-            properties = DialogProperties(
+            dismissButton = { Button(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+            properties =
+            DialogProperties(
                 dismissOnClickOutside = true, // Allow dismissing by clicking outside
-                dismissOnBackPress = true // Allow dismissing with the back button
-            )
+                dismissOnBackPress = true, // Allow dismissing with the back button
+            ),
         )
     }
 }
@@ -299,7 +300,7 @@ fun SelectionToolbar(
     onMuteSelected: () -> Unit,
     onDeleteSelected: () -> Unit,
     onSelectAll: () -> Unit,
-    isAllMuted: Boolean
+    isAllMuted: Boolean,
 ) {
     TopAppBar(
         title = { Text(text = "$selectedCount") },
@@ -311,16 +312,18 @@ fun SelectionToolbar(
         actions = {
             IconButton(onClick = onMuteSelected) {
                 Icon(
-                    imageVector = if (isAllMuted) {
+                    imageVector =
+                    if (isAllMuted) {
                         Icons.AutoMirrored.TwoTone.VolumeUp
                     } else {
                         Icons.AutoMirrored.TwoTone.VolumeMute
                     },
-                    contentDescription = if (isAllMuted) {
+                    contentDescription =
+                    if (isAllMuted) {
                         "Unmute selected"
                     } else {
                         "Mute selected"
-                    }
+                    },
                 )
             }
             IconButton(onClick = onDeleteSelected) {
@@ -329,7 +332,7 @@ fun SelectionToolbar(
             IconButton(onClick = onSelectAll) {
                 Icon(Icons.Default.SelectAll, contentDescription = stringResource(R.string.select_all))
             }
-        }
+        },
     )
 }
 
@@ -340,14 +343,11 @@ fun ContactListView(
     onClick: (Contact) -> Unit,
     onLongClick: (Contact) -> Unit,
     contentPadding: PaddingValues,
-    channels: AppOnlyProtos.ChannelSet? = null
+    channels: AppOnlyProtos.ChannelSet? = null,
+    onNodeChipClick: (Contact) -> Unit,
 ) {
     val haptics = LocalHapticFeedback.current
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize(),
-        contentPadding = contentPadding,
-    ) {
+    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
         items(contacts, key = { it.contactKey }) { contact ->
             val selected by remember { derivedStateOf { selectedList.contains(contact.contactKey) } }
 
@@ -359,7 +359,8 @@ fun ContactListView(
                     onLongClick(contact)
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 },
-                channels = channels
+                channels = channels,
+                onNodeChipClick = { onNodeChipClick(contact) },
             )
         }
     }
