@@ -112,7 +112,7 @@
     <string name="unknown_username">Unknown Username</string>
     <string name="send">Send</string>
     <string name="send_text">Send Text</string>
-    <string name="warning_not_paired">You haven\'t yet paired a RGU Mesh compatible radio with this phone. Please pair a device and set your username.\n\nThis open-source application is in development, if you find problems please post on our forum: https://github.com/orgs/meshtastic/discussions.\n\nFor more information see our web page - www.meshtastic.org.</string>
+    <string name="warning_not_paired">You haven\'t yet paired a RGU Mesh compatible radio with this phone. Please pair a device and set your username.\n</string>
     <string name="you">You</string>
     <string name="your_name">Your Name</string>
     <string name="analytics_okay">Anonymous usage statistics and crash reports.</string>
@@ -243,9 +243,9 @@
     <string name="traceroute">Traceroute</string>
     <string name="intro_show">Show Introduction</string>
     <string name="intro_welcome">Welcome to <font color="#FF0000">RGU</font> Mesh</string>
-    <string name="intro_welcome_text"><font color="#FF0000">RGU</font> Mesh is an open-source, off-grid, encrypted communication platform. The <font color="#FF0000">RGU</font> Mesh radios form a mesh network and communicate using the LoRa protocol to send text messages.</string>
+    <string name="intro_welcome_text"><font color="#FF0000">RGU</font> Mesh is an off-grid, encrypted communication platform. The <font color="#FF0000">RGU</font> Mesh radios form a mesh network and communicate using the LoRa protocol to send text messages.</string>
     <string name="intro_started">…Let\'s get started!</string>
-    <string name="intro_started_text">Connect your <font color="#FF0000">RGU</font> Mesh device by using either Bluetooth, Serial or WiFi. \n\nYou can see which devices are compatible at www.meshtastic.org/docs/hardware</string>
+    <string name="intro_started_text">Connect your <font color="#FF0000">RGU</font> Mesh device by using either Bluetooth, Serial or WiFi.</string>
     <string name="intro_encryption">"Setting up encryption"</string>
     <string name="intro_encryption_text">As standard, a default encryption key is set. To enable your own channel and enhanced encryption, go to the channel tab and change the channel name, this will set a random key for AES256 encryption. \n\nTo communicate with other devices they will need to scan your QR code or follow the shared link to configure the channel settings.</string>
     <string name="message">Message</string>

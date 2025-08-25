@@ -28,8 +28,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.ui.draw.shadow
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -100,16 +102,20 @@ fun NodeItem(
     }
 
     val cardColors = if (isThisNode) {
-        thisNode?.colors?.second
-    } else {
-        thatNode.colors.second
-    }?.let {
-        val containerColor = Color(it).copy(alpha = 0.2f)
+        // Use darker lime green for current node
+        val containerColor = Color(0xFF689F38)
         CardDefaults.cardColors().copy(
             containerColor = containerColor,
-            contentColor = contentColorFor(containerColor)
+            contentColor = Color.White
         )
-    } ?: (CardDefaults.cardColors())
+    } else {
+        // Use medium lime green for other nodes
+        val containerColor = Color(0xFF7CB342)
+        CardDefaults.cardColors().copy(
+            containerColor = containerColor,
+            contentColor = Color.White
+        )
+    }
 
     val (detailsShown, showDetails) = remember { mutableStateOf(expanded) }
     val unmessageable = remember(thatNode) {
@@ -123,14 +129,22 @@ fun NodeItem(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 4.dp)
-            .defaultMinSize(minHeight = 80.dp),
+            .defaultMinSize(minHeight = 80.dp)
+,
         onClick = { showDetails(!detailsShown) },
-        colors = cardColors
+        colors = cardColors,
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 0.dp,
+            pressedElevation = 0.dp,
+            hoveredElevation = 0.dp,
+            focusedElevation = 0.dp
+        )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp),
+                .padding(horizontal = 16.dp, vertical = 14.dp),
         ) {
             Row(
                 modifier = Modifier
@@ -186,7 +200,7 @@ fun NodeItem(
                     voltage = thatNode.voltage
                 )
             }
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -203,7 +217,7 @@ fun NodeItem(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -243,7 +257,7 @@ fun NodeItem(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                 ) {

@@ -69,19 +69,15 @@ fun ContactItem(
                 onClick = onClick,
                 onLongClick = onLongClick,
             )
-            .background(color = if (selected) Color.Gray else MaterialTheme.colorScheme.background)
+            .background(color = if (selected) Color(0xFF689F38).copy(alpha = 0.2f) else MaterialTheme.colorScheme.background)
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 6.dp),
         shape = RoundedCornerShape(12.dp),
     ) {
-        val colors = if (contact.nodeColors != null) {
-            AssistChipDefaults.assistChipColors(
-                labelColor = Color(contact.nodeColors.first),
-                containerColor = Color(contact.nodeColors.second),
-            )
-        } else {
-            AssistChipDefaults.assistChipColors()
-        }
+        val colors = AssistChipDefaults.assistChipColors(
+            labelColor = Color.White,
+            containerColor = Color(0xFF689F38),
+        )
 
         Row(
             modifier = Modifier

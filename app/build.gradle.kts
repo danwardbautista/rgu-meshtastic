@@ -249,6 +249,7 @@ detekt {
 }
 
 val googleServiceKeywords = listOf("crashlytics", "google")
+val baselineProfileKeywords = listOf("baseline", "profile", "art")
 tasks.configureEach {
     if (
         googleServiceKeywords.any {
@@ -256,6 +257,16 @@ tasks.configureEach {
         } && name.contains("fdroid", ignoreCase = true)
     ) {
         project.logger.lifecycle("Disabling task for F-Droid: $name")
+        enabled = false
+    }
+    
+    // Disable baseline profile tasks for F-Droid builds
+    if (
+        baselineProfileKeywords.any {
+            name.contains(it, ignoreCase = true)
+        } && name.contains("fdroid", ignoreCase = true)
+    ) {
+        project.logger.lifecycle("Disabling baseline profile task for F-Droid: $name")
         enabled = false
     }
 }

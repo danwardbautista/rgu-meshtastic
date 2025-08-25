@@ -20,11 +20,20 @@ package com.geeksville.mesh.ui
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.recalculateWindowInsets
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.twotone.Chat
@@ -198,7 +207,9 @@ fun MainScreen(
     val currentDestination = navController.currentBackStackEntryAsState().value?.destination
     val topLevelDestination = TopLevelDestination.fromNavDestination(currentDestination)
     NavigationSuiteScaffold(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
         navigationSuiteItems = {
             TopLevelDestination.entries.forEach { destination ->
                 val isSelected = destination == topLevelDestination
@@ -250,10 +261,14 @@ fun MainScreen(
             }
         }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+            ) {
             var sharedContact: Node? by remember { mutableStateOf(null) }
             if (sharedContact != null) {
                 SharedContactDialog(
@@ -293,16 +308,17 @@ fun MainScreen(
                     }
                 },
             )
-            NavGraph(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .recalculateWindowInsets()
-                    .safeDrawingPadding()
-                    .imePadding(),
-                uIViewModel = uIViewModel,
-                bluetoothViewModel = bluetoothViewModel,
-                navController = navController,
-            )
+                NavGraph(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .recalculateWindowInsets()
+                        .safeDrawingPadding()
+                        .imePadding(),
+                    uIViewModel = uIViewModel,
+                    bluetoothViewModel = bluetoothViewModel,
+                    navController = navController,
+                )
+            }
         }
     }
 }
@@ -414,7 +430,9 @@ private fun MainAppBar(
                 text = title,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                ),
             )
         },
         subtitle = {
@@ -513,7 +531,13 @@ private fun MainMenuActions(
     DropdownMenu(
         expanded = showMenu,
         onDismissRequest = { showMenu = false },
-        modifier = Modifier.background(MaterialTheme.colorScheme.background.copy(alpha = 1f)),
+        modifier = Modifier
+            .background(
+                MaterialTheme.colorScheme.surface,
+                RoundedCornerShape(16.dp)
+            )
+            .clip(RoundedCornerShape(16.dp))
+,
     ) {
         MainMenuAction.entries.forEach { action ->
             DropdownMenuItem(

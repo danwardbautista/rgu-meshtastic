@@ -27,11 +27,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardColors
 import androidx.compose.material3.CardDefaults
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
@@ -80,15 +83,13 @@ internal fun MessageItem(
 ) = Column(
     modifier = modifier
         .fillMaxWidth()
-        .background(color = if (selected) Color.Gray else MaterialTheme.colorScheme.background),
+        .background(color = if (selected) Color(0xFF689F38).copy(alpha = 0.2f) else MaterialTheme.colorScheme.background),
 ) {
-    val containerColor = Color(
-        if (message.fromLocal) {
-            ourNode.colors.second
-        } else {
-            node.colors.second
-        }
-    ).copy(alpha = 0.2f)
+    val containerColor = if (message.fromLocal) {
+        Color(0xFF689F38) // Darker lime green for sent messages
+    } else {
+        Color(0xFF7CB342) // Medium lime green for received messages  
+    }
     val cardColors = CardDefaults.cardColors().copy(
         containerColor = containerColor,
         contentColor = contentColorFor(containerColor)
@@ -107,8 +108,20 @@ internal fun MessageItem(
                     onClick = onClick,
                     onLongClick = onLongClick,
                 )
-                .then(messageModifier),
+                .then(messageModifier)
+,
             colors = cardColors,
+            shape = RoundedCornerShape(
+                topStart = 20.dp,
+                topEnd = 20.dp,
+                bottomStart = if (message.fromLocal) 20.dp else 4.dp,
+                bottomEnd = if (message.fromLocal) 4.dp else 20.dp
+            ),
+            elevation = CardDefaults.cardElevation(
+                defaultElevation = 0.dp,
+                pressedElevation = 0.dp,
+                hoveredElevation = 0.dp
+            ),
         ) {
             Column(
                 modifier = Modifier
@@ -123,7 +136,7 @@ internal fun MessageItem(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 4.dp),
+                        .padding(horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -150,7 +163,7 @@ internal fun MessageItem(
                 }
 
                 Column(
-                    modifier = Modifier.padding(horizontal = 8.dp),
+                    modifier = Modifier.padding(horizontal = 12.dp),
                 ) {
                     AutoLinkText(
                         modifier = Modifier
@@ -164,7 +177,7 @@ internal fun MessageItem(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = topPadding, bottom = 4.dp),
+                            .padding(top = topPadding, bottom = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -224,7 +237,7 @@ private fun OriginalMessageSnippet(
         OutlinedCard(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(4.dp)
+                .padding(8.dp)
                 .clickable { onNavigateToOriginalMessage(originalMessage.packetId) },
             colors = cardColors,
         ) {

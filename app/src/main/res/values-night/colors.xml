@@ -20,13 +20,20 @@
     <color name="colorOnPrimary">#1A1F16</color>
     <color name="colorPrimary">#7A9C5A</color>
     <color name="colorPrimaryDark">#1A1F16</color>
-    <color name="colorMsg">#2A3122</color>
-    <color name="colorMyMsg">#3A4A2D</color>
-    <color name="colorAdvancedBackground">#1A1F16</color>
+    <color name="colorMsg">#273020</color>
+    <color name="colorMyMsg">#37482A</color>
+    <color name="colorAdvancedBackground">#171C14</color>
     <color name="colorMenuItem">#C5D4B0</color>
     <color name="selectedColor">#7A9C5A</color>
-    <color name="unselectedColor">#8A9A7A</color>
+    <color name="unselectedColor">#7A8C6A</color>
     <color name="colorAnnotation">#6B9B7A</color>
     <color name="toolbarBackground">#1A1F16</color>
     <color name="toolbarText">#7A9C5A</color>
+    <color name="colorCard">#1E241B</color>
+    <color name="colorCardBorder">#3A4A2D</color>
+    <color name="colorDivider">#445238</color>
+    <color name="colorDisabled">#6B7A5A</color>
+    <color name="colorSuccess">#6B9B7A</color>
+    <color name="colorWarning">#9B9A6B</color>
+    <color name="colorInfo">#6B7A9B</color>
 </resources>
